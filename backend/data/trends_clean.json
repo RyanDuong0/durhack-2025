@@ -1,0 +1,12 @@
+[
+  {"year": 2016, "category": "gaming", "topic": "pokemon go"},
+  {"year": 2019, "category": "games",  "topic": "cozy games"},
+  {"year": 2020, "category": "social", "topic": "among us"},
+  {"year": 2014, "category": "meme",   "topic": "ice bucket challenge"},
+  {"year": 2016, "category": "meme",   "topic": "damn daniel"},
+  {"year": 2021, "category": "food",   "topic": "baked feta pasta"},
+  {"year": 2020, "category": "food",   "topic": "dalgona coffee"},
+  {"year": 2023, "category": "tech",   "topic": "ai art"},
+  {"year": 2013, "category": "music",  "topic": "harlem shake"},
+  {"year": 2018, "category": "gaming", "topic": "fortnite"}
+]

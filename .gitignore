@@ -1,0 +1,26 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+.venv/
+backend/.venv/
+data/embeddings.npy
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+.venv/
+backend/.venv/
+.env
+.env.*
+data/embeddings.npy
+frontend/node_modules/
+__pycache__/
+*.pyc
