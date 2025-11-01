@@ -1,5 +1,5 @@
-function randomDate(startYear = 2015, endYear = 2025) {
-  const start = new Date(`${startYear}-01-01`).getTime();
+function randomDate(startYear = 2016, endYear = 2025) {
+  const start = new Date(`${startYear}-04-01`).getTime();
   const end = new Date(`${endYear}-12-31`).getTime();
   const timestamp = start + Math.random() * (end - start);
   return new Date(timestamp);

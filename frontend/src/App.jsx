@@ -12,45 +12,32 @@ function App() {
     setResultMessage(null);
     setLoading(true);
 
-    // Example payload - adjust to your backend shape
-    const payload = {
-      prompt: promptText,
-      range: {
-        from: range.before.toISOString(),
-        to: range.after.toISOString(),
-      },
-    };
+    console.log("User prompt:", promptText);
+    setResultMessage({
+      type: "info",
+      text: `Prompt submitted: ${promptText || "(empty)"}`,
+      range: range ? { from: range.before.toLocaleString(), to: range.after.toLocaleString() } : null,
+    });
 
-    try {
-      const res = await fetch("/api/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Server responded ${res.status}: ${text}`);
-      }
-
-      const data = await res.json();
-      setResultMessage({ type: "success", text: "Submitted successfully.", data });
-    } catch (err) {
-      console.error("Submit error:", err);
-      setResultMessage({ type: "error", text: err.message || "Submit failed." });
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   return (
     <>
-      <div style={{ minHeight: "100vh", padding: "20px" }}>
-        <h1 style={{ marginBottom: 12 }}>Tea Time (Twitter Trending)</h1>
+      <div
+        style={{
+          minHeight: "100vh",
+          padding: "20px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box",
+        }}
+      >
+        <h1 style={{ marginBottom: 12 }}>Tea Timeline</h1>
 
-        <div style={{ marginBottom: 12, maxWidth: 1100 }}>
+        <div style={{ width: "100%", maxWidth: 1100, marginBottom: 12 }}>
           <label htmlFor="prompt" style={{ display: "block", marginBottom: 6, color: "#35536d", fontSize: 13 }}>
             Enter prompt for the ML model
           </label>
@@ -77,16 +64,18 @@ function App() {
           </div>
         </div>
 
-        {/* Pass prompt and onSubmit handler down to Timeline */}
-        <Timeline trends={trends} startYear={2015} prompt={prompt} onSubmit={handleTimelineSubmit} />
+        {/* Pass startYear=2016 and startMonth=3 (April) explicitly so App cannot accidentally override it */}
+        <Timeline trends={trends} startYear={2016} startMonth={3} prompt={prompt} onSubmit={handleTimelineSubmit} />
 
-        <div style={{ maxWidth: 1100, marginTop: 12 }}>
+        <div style={{ width: "100%", maxWidth: 1100, marginTop: 12 }}>
           {loading && <div style={{ color: "#0f3b66" }}>Submitting...</div>}
           {resultMessage && (
             <div style={{ marginTop: 8, color: resultMessage.type === "error" ? "#b00020" : "#155e75" }}>
               {resultMessage.text}
-              {resultMessage.data && (
-                <pre style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify(resultMessage.data, null, 2)}</pre>
+              {resultMessage.range && (
+                <div style={{ marginTop: 6, fontSize: 13, color: "#0f3b66" }}>
+                  Range used: {resultMessage.range.from} — {resultMessage.range.to}
+                </div>
               )}
             </div>
           )}
