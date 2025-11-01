@@ -43,7 +43,8 @@ function App() {
           boxSizing: "border-box",
         }}
       >
-        <h1 style={{ marginBottom: 12 }}>Tea Timeline</h1>
+        <h1 style={{ marginBottom: 12 }}>Tea Time</h1>
+        <h6 style={{fontSize: 8}}>(.ai)</h6>
 
         <div style={{ width: "100%", maxWidth: 1100, marginBottom: 12 }}>
           <label htmlFor="prompt" style={{ display: "block", marginBottom: 6, color: "#35536d", fontSize: 13 }}>
