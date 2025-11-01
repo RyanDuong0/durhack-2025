@@ -16,3 +16,11 @@ frontend/node_modules/
 # OS
 .DS_Store
 Thumbs.db
+.venv/
+backend/.venv/
+.env
+.env.*
+data/embeddings.npy
+frontend/node_modules/
+__pycache__/
+*.pyc
