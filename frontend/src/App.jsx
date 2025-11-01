@@ -22,6 +22,14 @@ function App() {
     setLoading(false);
   };
 
+  // Called by Timeline when user resets selection
+  const handleTimelineReset = () => {
+    // Clear any submitted result the parent is showing
+    setResultMessage(null);
+    setLoading(false);
+    console.log("Timeline selection reset — parent cleared displayed prompt/range.");
+  };
+
   return (
     <>
       <div
@@ -31,7 +39,7 @@ function App() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: "center", // centers vertically as well
           boxSizing: "border-box",
         }}
       >
@@ -65,7 +73,14 @@ function App() {
         </div>
 
         {/* Pass startYear=2016 and startMonth=3 (April) explicitly so App cannot accidentally override it */}
-        <Timeline trends={trends} startYear={2016} startMonth={3} prompt={prompt} onSubmit={handleTimelineSubmit} />
+        <Timeline
+          trends={trends}
+          startYear={2016}
+          startMonth={3}
+          prompt={prompt}
+          onSubmit={handleTimelineSubmit}
+          onReset={handleTimelineReset}
+        />
 
         <div style={{ width: "100%", maxWidth: 1100, marginTop: 12 }}>
           {loading && <div style={{ color: "#0f3b66" }}>Submitting...</div>}
