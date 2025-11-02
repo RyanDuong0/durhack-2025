@@ -3,6 +3,7 @@ from __future__ import annotations
 import json, csv
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+from datetime import date
 import numpy as np
 
 DATA_DIR = Path("data")
@@ -34,24 +35,23 @@ class TrendRetriever:
         self.rows = _load_trend_rows()
         self.csv_start, self.csv_end = _csv_bounds(self.rows)
         self.emb, self.index = _load_index_and_embs()
-
         self.topic_dates: Dict[str, list[str]] = {}
         for r in self.rows:
             self.topic_dates.setdefault(r["topic"], []).append(r["date"])
         for t in self.topic_dates:
             self.topic_dates[t] = sorted(set(self.topic_dates[t]))
-
+    
     def clamp_window(self, start: Optional[str], end: Optional[str]) -> tuple[str, str]:
         s = start or self.csv_start
         e = end or self.csv_end
         return max(s, self.csv_start), min(e, self.csv_end)
-
+    
     @staticmethod
     def _cosine(a: np.ndarray, B: np.ndarray) -> np.ndarray:
         a = a / (np.linalg.norm(a) + 1e-8)
         Bn = B / (np.linalg.norm(B, axis=1, keepdims=True) + 1e-8)
         return Bn @ a
-
+    
     def _filter_by_window(self, topics: List[str], start: Optional[str], end: Optional[str]) -> List[str]:
         if not start and not end:
             return topics
@@ -63,7 +63,7 @@ class TrendRetriever:
             if any(s <= d <= e for d in ds):
                 out.append(t)
         return out
-
+    
     def dense_search(self, q_emb: np.ndarray, k: int = 8, start: Optional[str]=None, end: Optional[str]=None) -> List[Dict[str, Any]]:
         if self.emb is None or self.index is None:
             return []
@@ -73,7 +73,7 @@ class TrendRetriever:
         allowed = set(self._filter_by_window([p["topic"] for p in prelim], start, end))
         winners = [p for p in prelim if p["topic"] in allowed][:k]
         return winners
-
+    
     def keyword_search(self, query: str, k: int = 8, start: Optional[str]=None, end: Optional[str]=None) -> List[Dict[str, Any]]:
         q = query.lower().split()
         candidates: Dict[str, int] = {}
@@ -83,11 +83,94 @@ class TrendRetriever:
                 candidates[t] = max(candidates.get(t, 0), 1)
         allowed = set(self._filter_by_window(list(candidates.keys()), start, end))
         items = [{"topic": t, "score": float(candidates[t])} for t in candidates if t in allowed]
-        items.sort(lambda x: (-x["score"], x["topic"]))
+        items.sort(key=lambda x: (-x["score"], x["topic"]))
         return items[:k]
-
+    
     def topic_timeline(self, topic: str) -> Dict[str, Any]:
         dates = self.topic_dates.get(topic, [])
         if not dates:
             return {"topic": topic, "first_seen": None, "last_seen": None, "days_seen": 0, "dates": []}
         return {"topic": topic, "first_seen": dates[0], "last_seen": dates[-1], "days_seen": len(dates), "dates": dates}
+
+
+# Global retriever instance
+_retriever: Optional[TrendRetriever] = None
+
+def get_retriever() -> TrendRetriever:
+    """Lazy-load the global retriever instance"""
+    global _retriever
+    if _retriever is None:
+        _retriever = TrendRetriever()
+    return _retriever
+
+
+def retrieve_topics(
+    query: str,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    top_k: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Main API function to retrieve topics based on a query and optional date range.
+    
+    Args:
+        query: User's search query/prompt
+        start_date: Optional start date filter
+        end_date: Optional end date filter
+        top_k: Number of results to return
+    
+    Returns:
+        List of topic dictionaries with 'topic', 'date', 'year', etc.
+    """
+    retriever = get_retriever()
+    
+    # Convert dates to ISO strings
+    start_str = start_date.isoformat() if start_date else None
+    end_str = end_date.isoformat() if end_date else None
+    
+    # Try keyword search first (simpler, no embeddings needed)
+    results = retriever.keyword_search(query, k=top_k, start=start_str, end=end_str)
+    
+    # If no results, try getting all topics in date range
+    if not results:
+        filtered_rows = []
+        for r in retriever.rows:
+            row_date = r["date"]
+            if start_str and row_date < start_str:
+                continue
+            if end_str and row_date > end_str:
+                continue
+            filtered_rows.append(r)
+        
+        # Get unique topics, prioritize by rank
+        seen = set()
+        results = []
+        for r in sorted(filtered_rows, key=lambda x: (x["date"], x["rank"])):
+            if r["topic"] not in seen:
+                seen.add(r["topic"])
+                results.append({
+                    "topic": r["topic"],
+                    "date": r["date"],
+                    "year": r["date"][:4],
+                    "rank": r["rank"],
+                    "score": 1.0
+                })
+                if len(results) >= top_k:
+                    break
+    
+    # Enrich results with date and year info
+    enriched = []
+    for r in results:
+        topic = r["topic"]
+        timeline = retriever.topic_timeline(topic)
+        enriched.append({
+            "topic": topic,
+            "date": timeline.get("first_seen", ""),
+            "year": timeline.get("first_seen", "")[:4] if timeline.get("first_seen") else "",
+            "score": r.get("score", 1.0),
+            "days_seen": timeline.get("days_seen", 0),
+            "first_seen": timeline.get("first_seen"),
+            "last_seen": timeline.get("last_seen"),
+        })
+    
+    return enriched[:top_k]

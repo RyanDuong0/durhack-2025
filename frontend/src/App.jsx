@@ -1,5 +1,35 @@
 import { useState, useEffect } from "react";
 
+function getBackendUrl() {
+  // 1) runtime injection
+  try {
+    if (typeof window !== "undefined" && window.__BACKEND_URL__) {
+      return window.__BACKEND_URL__;
+    }
+  } catch (e) {}
+
+  // 2) process.env (CRA / some bundlers)
+  try {
+    if (typeof process !== "undefined" && process.env) {
+      if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+      if (process.env.VITE_API_URL) return process.env.VITE_API_URL;
+      if (process.env.API_URL) return process.env.API_URL;
+    }
+  } catch (e) {}
+
+  // 3) Vite (import.meta) — only valid after bundling, guard so runtime doesn't blow up
+  try {
+    if (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+  } catch (e) {}
+
+  // final fallback
+  return "http://127.0.0.1:8000";
+}
+
+const BACKEND_URL = getBackendUrl();
+
 // Example trends data
 const trends = [
   { date: new Date(2016, 3, 15), title: "Trend 1", volume: 1200 },
@@ -14,7 +44,7 @@ const trends = [
   { date: new Date(2025, 7, 8), title: "Trend 10", volume: 4800 },
 ];
 
-function Timeline({ trends, startYear, startMonth, prompt, onSubmit, onReset }) {
+function Timeline({ trends, startYear, startMonth, prompt, onSubmit, onReset, onRangeChange }) {
   const [selectedRange, setSelectedRange] = useState(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState(null);
@@ -44,7 +74,14 @@ function Timeline({ trends, startYear, startMonth, prompt, onSubmit, onReset }) 
   const handleMouseDown = (index) => {
     setIsSelecting(true);
     setSelectionStart(index);
-    setSelectedRange({ start: index, end: index });
+    const newRange = { start: index, end: index };
+    setSelectedRange(newRange);
+    if (onRangeChange) {
+      onRangeChange({ 
+        before: bars[index].date, 
+        after: bars[index].endDate 
+      });
+    }
   };
 
   const handleMouseEnter = (index) => {
@@ -52,7 +89,14 @@ function Timeline({ trends, startYear, startMonth, prompt, onSubmit, onReset }) 
     if (isSelecting && selectionStart !== null) {
       const start = Math.min(selectionStart, index);
       const end = Math.max(selectionStart, index);
-      setSelectedRange({ start, end });
+      const newRange = { start, end };
+      setSelectedRange(newRange);
+      if (onRangeChange) {
+        onRangeChange({ 
+          before: bars[start].date, 
+          after: bars[end].endDate 
+        });
+      }
     }
   };
 
@@ -63,6 +107,9 @@ function Timeline({ trends, startYear, startMonth, prompt, onSubmit, onReset }) 
   const handleResetClick = () => {
     setSelectedRange(null);
     setSelectionStart(null);
+    if (onRangeChange) {
+      onRangeChange(null);
+    }
     if (onReset) {
       onReset();
     }
@@ -156,6 +203,8 @@ function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [introStep, setIntroStep] = useState(0);
   const [teaTimeTransitioning, setTeaTimeTransitioning] = useState(false);
+  const [apiResponse, setApiResponse] = useState(null);
+  const [selectedRange, setSelectedRange] = useState(null);
 
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -202,25 +251,58 @@ function App() {
 
   const handleTimelineSubmit = async (range, promptText) => {
     setResultMessage(null);
+    setApiResponse(null);
     setLoading(true);
 
-    console.log("User prompt:", promptText);
-    setResultMessage({
-      type: "info",
-      text: `Prompt submitted: ${promptText || "(empty)"}`,
-      range: range ? { from: range.before.toLocaleString(), to: range.after.toLocaleString() } : null,
-    });
+    try {
+      const payload = {
+        prompt: promptText || "",
+        ...(range && {
+          date_range: {
+            start: range.before.toISOString(),
+            end: range.after.toISOString()
+          }
+        })
+      };
 
-    setLoading(false);
+      const response = await fetch(`${BACKEND_URL}/api/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setApiResponse(data);
+      setResultMessage({
+        type: "info",
+        text: "Prediction received successfully",
+      });
+    } catch (error) {
+      console.error("API Error:", error);
+      setResultMessage({
+        type: "error",
+        text: `Error: ${error.message}`,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEnterSubmit = () => {
-    handleTimelineSubmit(null, prompt);
+    handleTimelineSubmit(selectedRange, prompt);
   };
 
   const handleTimelineReset = () => {
     setResultMessage(null);
+    setApiResponse(null);
     setLoading(false);
+    setSelectedRange(null);
     console.log("Timeline selection reset — parent cleared displayed prompt/range.");
   };
 
@@ -443,7 +525,15 @@ function App() {
 
         {/* Timeline */}
         <div style={{ width: "100%", marginBottom: 40 }}>
-          <Timeline trends={trends} startYear={2016} startMonth={4} prompt={prompt} onSubmit={handleTimelineSubmit} onReset={handleTimelineReset} />
+          <Timeline 
+            trends={trends} 
+            startYear={2016} 
+            startMonth={4} 
+            prompt={prompt} 
+            onSubmit={handleTimelineSubmit} 
+            onReset={handleTimelineReset}
+            onRangeChange={setSelectedRange}
+          />
         </div>
 
         {/* Context Area */}
@@ -463,18 +553,41 @@ function App() {
 
             {/* Title of Trend */}
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <h2 style={{ fontSize: "28px", fontWeight: "600", color: "#0f3b66", margin: 0 }}>Title of Trend</h2>
+              <h2 style={{ fontSize: "28px", fontWeight: "600", color: "#0f3b66", margin: 0 }}>
+                {apiResponse?.top_trend || "Title of Trend"}
+              </h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "100%" }} />
-                <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "95%" }} />
-                <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "90%" }} />
-                <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "85%" }} />
+                {apiResponse?.message ? (
+                  <p style={{ 
+                    fontSize: "15px", 
+                    lineHeight: "1.6", 
+                    color: "#1a202c", 
+                    margin: 0 
+                  }}>
+                    {apiResponse.message}
+                  </p>
+                ) : (
+                  <>
+                    <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "100%" }} />
+                    <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "95%" }} />
+                    <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "90%" }} />
+                    <div style={{ height: "12px", backgroundColor: "#e2e8f0", borderRadius: "6px", width: "85%" }} />
+                  </>
+                )}
               </div>
             </div>
 
-            {/* April - June */}
+            {/* Date Range */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center", minHeight: "220px" }}>
-              <div style={{ fontSize: "20px", fontWeight: "600", color: "#0f3b66", textAlign: "right" }}>April - June</div>
+              <div style={{ fontSize: "20px", fontWeight: "600", color: "#0f3b66", textAlign: "right" }}>
+                {selectedRange ? (
+                  <>
+                    {selectedRange.before.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })} - {selectedRange.after.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
+                  </>
+                ) : (
+                  "All Time"
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -540,11 +653,6 @@ function App() {
           {resultMessage && (
             <div style={{ marginTop: 8, color: resultMessage.type === "error" ? "#b00020" : "#0f3b66", fontSize: 15 }}>
               {resultMessage.text}
-              {resultMessage.range && (
-                <div style={{ marginTop: 6, fontSize: 14, color: "#4a5568" }}>
-                  Range used: {resultMessage.range.from} — {resultMessage.range.to}
-                </div>
-              )}
             </div>
           )}
         </div>
