@@ -1,3 +1,4 @@
+# clean_trends_csv.py
 from __future__ import annotations
 import csv, re
 from pathlib import Path
@@ -6,8 +7,7 @@ from datetime import datetime
 
 IN_PATH  = Path("data") / "trends_top3_us.csv"
 OUT_PATH = Path("data") / "trends_top3_us_clean.csv"
-STATS_PATH = Path("data") / "trends_stats.csv"
-TOPIC_SUMMARY_PATH = Path("data") / "trends_topic_summary.csv"
+MIN_PATH = Path("data") / "trends_min_us.csv"
 
 BAD_SUBSTRINGS = {"home", "archives", "trending topics in"}
 WS_RE = re.compile(r"\s+")
@@ -16,116 +16,71 @@ def tidy_topic(t: str) -> str:
     if not t:
         return t
     t = WS_RE.sub(" ", t.strip())
-    # keep hashtags/emojis/caps as-is; else title-case words that look plain
     if t.startswith("#"):
-        return t
-    # If the token is all-caps (e.g., NBA), keep it; else Title-Case words
+        return t  # keep hashtags as-is
     parts = []
-    for word in t.split(" "):
-        if len(word) > 2 and word.isupper():
-            parts.append(word)
+    for w in t.split(" "):
+        if len(w) > 2 and w.isupper():
+            parts.append(w)
         else:
-            parts.append(word.capitalize())
+            parts.append(w.capitalize())
     return " ".join(parts)
 
 def is_junk(t: str) -> bool:
-    low = t.lower().strip()
-    if not low:
-        return True
+    low = (t or "").lower().strip()
+    if not low: return True
     return any(bad in low for bad in BAD_SUBSTRINGS)
 
-def iso_date_ok(s: str) -> bool:
+def iso_ok(s: str) -> bool:
     try:
-        datetime.strptime(s, "%Y-%m-%d")
-        return True
-    except Exception:
-        return False
-
-def load_rows(path: Path):
-    with path.open("r", newline="", encoding="utf-8") as f:
-        rdr = csv.DictReader(f)
-        for row in rdr:
-            yield row
+        datetime.strptime(s, "%Y-%m-%d"); return True
+    except: return False
 
 def main():
     if not IN_PATH.exists():
-        print(f"Missing input CSV: {IN_PATH}")
-        return 2
+        print(f"Missing input {IN_PATH}"); return 2
 
-    # Read, clean, and bucket by date
-    by_date = defaultdict(list)
-    total_in = 0
-    total_out = 0
+    rows = []
+    with IN_PATH.open("r", encoding="utf-8", newline="") as f:
+        rdr = csv.DictReader(f)
+        for r in rdr:
+            d = (r.get("date") or "").strip()
+            if not iso_ok(d): continue
+            try:
+                rank = int((r.get("rank") or "").strip())
+            except: rank = 0
+            if rank not in (1,2,3): continue
 
-    for row in load_rows(IN_PATH):
-        total_in += 1
-        d = row.get("date","").strip()
-        if not iso_date_ok(d):
-            continue
+            topic = tidy_topic(r.get("topic",""))
+            if is_junk(topic): continue
 
-        topic = tidy_topic(row.get("topic",""))
-        if is_junk(topic):
-            continue
+            rows.append({
+                "date": d,
+                "country": (r.get("country") or "us").strip(),
+                "rank": rank,
+                "topic": topic,
+                "popularity": "",        # not reliable from site
+                "raw": topic,            # keep same as topic (no dup noise)
+                "source": "trend-calendar"
+            })
 
-        try:
-            rank = int(row.get("rank","").strip() or 0)
-        except Exception:
-            rank = 0
-        if rank not in (1,2,3):
-            # Keep only the top-3 ranks — if your scrape ever had >3, drop extras
-            continue
+    rows.sort(key=lambda x: (x["date"], x["rank"]))
 
-        by_date[d].append({
-            "date": d,
-            "country": row.get("country","us").strip() or "us",
-            "rank": rank,
-            "topic": topic,
-            "popularity": row.get("popularity","") or "",
-            "raw": topic,  # raw == cleaned topic (we cleaned it)
-            "source": row.get("source","trend-calendar"),
-        })
-
-    # Sort each day by rank; sort days chronologically
-    dates_sorted = sorted(by_date.keys())
-    out_rows = []
-    rows_per_day = {}
-
-    for d in dates_sorted:
-        day_rows = sorted(by_date[d], key=lambda r: r["rank"])[:3]
-        rows_per_day[d] = len(day_rows)
-        out_rows.extend(day_rows)
-
-    # Write clean CSV
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with OUT_PATH.open("w", newline="", encoding="utf-8") as f:
+    with OUT_PATH.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["date","country","rank","topic","popularity","raw","source"])
+        w.writeheader(); w.writerows(rows)
+
+    # Minimal CSV for app: date,rank,topic
+    with MIN_PATH.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["date","rank","topic"])
         w.writeheader()
-        for r in out_rows:
-            w.writerow(r)
-            total_out += 1
+        for r in rows:
+            w.writerow({"date": r["date"], "rank": r["rank"], "topic": r["topic"]})
 
-    # Quick stats: rows/day counts
-    with STATS_PATH.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["date","rows"])
-        for d in dates_sorted:
-            w.writerow([d, rows_per_day[d]])
-
-    # Topic summary (frequency + first/last seen)
-    # Useful for embeddings/retrieval later
-    topic_days = defaultdict(list)
-    for r in out_rows:
-        topic_days[r["topic"]].append(r["date"])
-    with TOPIC_SUMMARY_PATH.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["topic","days_seen","first_seen","last_seen"])
-        for t, ds in sorted(topic_days.items(), key=lambda kv: (-len(kv[1]), kv[0].lower())):
-            ds_sorted = sorted(ds)
-            w.writerow([t, len(set(ds_sorted)), ds_sorted[0], ds_sorted[-1]])
-
-    print(f"Cleaned {total_out} / {total_in} into {OUT_PATH}")
-    print(f"Per-day counts → {STATS_PATH}")
-    print(f"Per-topic summary → {TOPIC_SUMMARY_PATH}")
+    print(f"Clean rows: {len(rows)}")
+    print(f"→ {OUT_PATH}")
+    print(f"→ {MIN_PATH}")
     return 0
 
 if __name__ == "__main__":
