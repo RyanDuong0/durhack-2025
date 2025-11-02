@@ -88,23 +88,56 @@ def load_trends_from_csv(start_date: Optional[str] = None, end_date: Optional[st
     return []
 
 
-def get_top_trend_from_list(trends: List[Dict[str, Any]]) -> str:
-    """Pick the most interesting top trend"""
+def get_top_trend_from_list(trends: List[Dict[str, Any]], prompt: str = "") -> str:
+    """Pick the most relevant and interesting top trend based on the prompt"""
     if not trends:
         return "Historical Twitter Trends"
     
-    # Prefer rank 1 trends that aren't hashtags
-    non_hashtag_rank1 = [t for t in trends if t.get("rank") == "1" and not t["topic"].startswith("#")]
-    if non_hashtag_rank1:
-        return non_hashtag_rank1[0]["topic"]
+    prompt_lower = prompt.lower()
+    prompt_words = set(prompt_lower.split())
     
-    # Fall back to any rank 1
-    rank1 = [t for t in trends if t.get("rank") == "1"]
+    # Score each trend by relevance to prompt
+    scored_trends = []
+    for t in trends:
+        topic = t["topic"]
+        topic_lower = topic.lower()
+        score = 0
+        
+        # Higher score for rank 1
+        if t.get("rank") == "1":
+            score += 10
+        
+        # Bonus for non-hashtags (usually more readable)
+        if not topic.startswith("#"):
+            score += 5
+        
+        # Check for keyword matches
+        topic_words = set(topic_lower.replace("#", "").split())
+        matches = len(prompt_words & topic_words)
+        score += matches * 20
+        
+        # Check for partial matches (e.g., "food" in "fastfood")
+        for pw in prompt_words:
+            if len(pw) > 3 and pw in topic_lower:
+                score += 15
+        
+        scored_trends.append((score, topic))
+    
+    # Sort by score (highest first)
+    scored_trends.sort(reverse=True, key=lambda x: x[0])
+    
+    # If we have a good match (score > 15), use it
+    if scored_trends[0][0] > 15:
+        print(f"[DEBUG] Selected trend '{scored_trends[0][1]}' with score {scored_trends[0][0]}")
+        return scored_trends[0][1]
+    
+    # Otherwise, prefer interesting rank 1 trends
+    rank1 = [t["topic"] for t in trends if t.get("rank") == "1" and not t["topic"].startswith("#")]
     if rank1:
-        return rank1[0]["topic"]
+        return rank1[0]
     
-    # Last resort
-    return trends[0]["topic"]
+    # Fall back to first trend
+    return scored_trends[0][1]
 
 
 @app.get("/")

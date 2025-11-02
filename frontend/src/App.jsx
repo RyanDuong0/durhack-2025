@@ -176,22 +176,6 @@ function Timeline({ trends, startYear, startMonth, prompt, onSubmit, onReset, on
           Reset
         </button>
       </div>
-
-      {selectedRange && (
-        <div
-          style={{
-            marginTop: 12,
-            fontSize: 14,
-            color: "#0f3b66",
-            padding: "8px 12px",
-            backgroundColor: "#f0f4f8",
-            borderRadius: 6,
-          }}
-        >
-          Selected range: {bars[selectedRange.start].date.toLocaleDateString()} —{" "}
-          {bars[selectedRange.end].endDate.toLocaleDateString()}
-        </div>
-      )}
     </div>
   );
 }
