@@ -513,7 +513,7 @@ function App() {
               )}
             </div>
 
-            {/* Description and Stats - Only visible during intro */}
+            {/* Description and Stats, Only visible during intro */}
             {introStep >= 10 && (
               <div style={{ marginTop: "60px", animation: "fadeIn 1s ease-out" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "60px", maxWidth: "1000px" }}>
