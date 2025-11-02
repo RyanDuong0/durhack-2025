@@ -443,12 +443,12 @@ function App() {
               <div style={{ marginTop: "60px", animation: "fadeIn 1s ease-out" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "80px", maxWidth: "1000px", alignItems: "start" }}>
                   <div style={{ fontSize: "15px", color: "#4a5568", lineHeight: "1.8", textAlign: "left", maxWidth: "520px" }}>
-                    <p style={{ margin: "0 0 16px 0" }}>Ask and you shall receive, we'll predict what's in store for you using only relevant trending Twitter topics.</p>
+                    <p style={{ margin: "20px 0 16px 0" }}>Ask and you shall receive, we'll predict what's in store for you using only relevant trending Twitter topics.</p>
                     <p style={{ margin: "0 0 16px 0" }}>Is there a timeline you're biased towards? Date back to the era, choosing a period on the timeline, and we'll keep just what's relevant to you.</p>
                     <p style={{ margin: 0 }}>Leave it blank to keep everything included.</p>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "32px", textAlign: "left", marginTop: "20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "32px", textAlign: "left", marginTop: "0px" }}>
                     <div>
                       <div style={{ fontSize: "20px", fontWeight: "600", color: "#0f3b66" }}>Aug '25</div>
                       <div style={{ fontSize: "16px", color: "#4a5568", marginTop: "4px" }}>67</div>
@@ -459,7 +459,7 @@ function App() {
                     </div>
                     <div>
                       <div style={{ fontSize: "20px", fontWeight: "600", color: "#0f3b66" }}>July '25</div>
-                      <div style={{ fontSize: "16px", color: "#4a5568", marginTop: "4px" }}>💀 attempt</div>
+                      <div style={{ fontSize: "16px", color: "#4a5568", marginTop: "4px" }}>Donald Trump 💀 attempt</div>
                     </div>
                   </div>
                 </div>
@@ -488,7 +488,7 @@ function App() {
                         e.target.style.transform = "translateY(0)";
                       }}
                     >
-                      want to know your future
+                      Peak into the future
                     </button>
                   </div>
                 )}
@@ -599,7 +599,7 @@ function App() {
               id="prompt"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe what you want the model to do with the selected date range..."
+              placeholder="Ask a question... Any question !"
               rows={4}
               style={{
                 width: "100%",
